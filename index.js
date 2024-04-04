@@ -28,17 +28,18 @@ bot.start(async (ctx) => {
     try {
         if(ctx.chat.type !== 'private') return;
 
-        await ctx.deleteMessage();
-
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user) {
             if(user.user_state !== 'start') {
+                await functions.sendTrackerMessage(bot, `send /start (${user.user_state})`, ``, ctx.from.id, ctx.from.username);
                 const text = user.user_lang === 'ru' ? ru : en;
                 const messageString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance);
                 const buttonString = text.invite_a_fren;
 
-                return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
+                return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: messageString, parse_mode: "HTML", reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}})
+                //return ctx.replywithpho(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
             } else if(user.user_state === 'start') {
+                await functions.sendTrackerMessage(bot, `send /start (${user.user_state}, нужно подтвердить подписку)`, ``, ctx.from.id, ctx.from.username);
                 const channelId = user.user_lang === 'ru' ? process.env.CHANNEL_RU : process.env.CHANNEL_EN;
                 const buttonString = user.user_lang === 'ru' ? '✅ Я подписан(а)' : '✅ Im subscribed';
                 const text = user.user_lang === 'ru' ? ru : en;
@@ -56,13 +57,12 @@ bot.start(async (ctx) => {
         }
 
         await ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: '🇬🇧 English', callback_data: `startBot-en`}], [{text: '🇷🇺 Русский', callback_data: 'startBot-ru'}]]}});
-        await functions.sendTrackerMessage(bot, `запустил бота`, ``, ctx.from.id, ctx.from.username);
+        await functions.sendTrackerMessage(bot, `first time send /start`, ``, ctx.from.id, ctx.from.username);
     } catch (error) {
         await functions.sendTrackerMessage(bot, `start`, error, ctx.from.id, ctx.from.username);
         console.error(error);
     }
 })
-
 bot.action(/^((startBot)-\S+)$/, async (ctx) => {
     try {
         const user = await functions.getUserFromDatabase(ctx.from.id);
@@ -112,11 +112,9 @@ bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
         await ctx.deleteMessage();
 
         const thanksString = text.thx_sub.replace('{{name}}', ctx.from.first_name);
+        const menuButtons = text.kb_menu;
 
-        await ctx.replyWithHTML(thanksString, {reply_markup: {resize_keyboard: true, keyboard: [
-            ['Test 1', 'Test 2'],
-            ['Test 3']
-        ]}});
+        await ctx.replyWithHTML(thanksString, {reply_markup: {resize_keyboard: true, keyboard: menuButtons}});
 
         await ctx.replyWithChatAction('typing');
         await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -124,7 +122,8 @@ bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
         const messageString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance);
         const buttonString = text.invite_a_fren;
 
-        return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
+        return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: messageString, parse_mode: "HTML", reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}})
+        //return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
     } catch (error) {
         await functions.sendTrackerMessage(bot, `checkSub`, error, ctx.from.id, ctx.from.username);
         console.error(error);
