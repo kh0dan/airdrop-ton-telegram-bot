@@ -1,4 +1,4 @@
-const dotenv = require('dotenv');
+const dotenv = require('dotenv'); // пенис
 dotenv.config();
 const { Telegraf } = require('telegraf');
 const rateLimit = require('telegraf-ratelimit');
