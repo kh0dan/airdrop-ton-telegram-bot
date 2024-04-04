@@ -28,19 +28,17 @@ bot.start(async (ctx) => {
     try {
         if(ctx.chat.type !== 'private') return;
 
+        await ctx.deleteMessage();
+
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user) {
             if(user.user_state !== 'start') {
-                await ctx.deleteMessage();
-
                 const text = user.user_lang === 'ru' ? ru : en;
                 const messageString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance);
                 const buttonString = text.invite_a_fren;
 
                 return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
             } else if(user.user_state === 'start') {
-                await ctx.deleteMessage();
-
                 const channelId = user.user_lang === 'ru' ? process.env.CHANNEL_RU : process.env.CHANNEL_EN;
                 const buttonString = user.user_lang === 'ru' ? '✅ Я подписан(а)' : '✅ Im subscribed';
                 const text = user.user_lang === 'ru' ? ru : en;
@@ -96,13 +94,14 @@ bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user.user_state !== 'start') return ctx.deleteMessage();
 
+        const text = user.user_lang === 'ru' ? ru : en;
+
         const callbackData = ctx.match[1];
         let channelId = callbackData.split('-')[2];
         channelId = -parseInt(channelId);
 
         const chatMember = await bot.telegram.getChatMember(channelId, ctx.from.id)
         if (!chatMember || chatMember.status === 'left' || chatMember.status === 'kicked') {
-            const text = user.user_lang === 'ru' ? ru : en;
             const cbString = text.unsubscribed;
 
             return ctx.answerCbQuery(cbString);
@@ -111,13 +110,19 @@ bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
         await functions.updateUserInDatabase(ctx.from.id, {user_state: 'active'});
 
         await ctx.deleteMessage();
-        await ctx.replyWithChatAction('typing');
 
-        const text = user.user_lang === 'ru' ? ru : en;
+        const thanksString = text.thx_sub.replace('{{name}}', ctx.from.first_name);
+
+        await ctx.replyWithHTML(thanksString, {reply_markup: {resize_keyboard: true, keyboard: [
+            ['Test 1', 'Test 2'],
+            ['Test 3']
+        ]}});
+
+        await ctx.replyWithChatAction('typing');
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+
         const messageString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance);
         const buttonString = text.invite_a_fren;
-
-        await new Promise((resolve) => setTimeout(resolve, 1100));
 
         return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
     } catch (error) {
