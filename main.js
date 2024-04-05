@@ -1,5 +1,5 @@
 module.exports = {
-    price_for_fren: 200,
+    price_for_fren: 500,
     name_jetton: '$YOD',
     name_crypto: 'YOD',
     channel_ru: 'yodton',
