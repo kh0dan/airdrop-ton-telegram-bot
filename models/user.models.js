@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
     user_first: String,
     user_lang: { type: String, default: 'en' },
     user_date: Number,
-    user_balance: { type: Number, default: 100 },
+    user_balance: { type: Number, default: 300 },
     user_timer: { type: Number, default: 0 },
     user_state: { type: String, default: 'start' }
 });
