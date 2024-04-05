@@ -8,7 +8,8 @@ const userSchema = new mongoose.Schema({
     user_date: Number,
     user_balance: { type: Number, default: 300 },
     user_timer: { type: Number, default: 0 },
-    user_state: { type: String, default: 'start' }
+    user_state: { type: String, default: 'start' },
+    user_wallet: { type: String, default: 'none' },
 });
 
 userSchema.index({ user_id: 1 }, { unique: true });

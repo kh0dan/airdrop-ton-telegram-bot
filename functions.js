@@ -46,7 +46,17 @@ async function updateUserInDatabase(user_id, updateData) {
     }
 }
 
+function msToNumber(seconds, type) {
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if(type === 'min') return minutes;
+    if(type === 'h') return hours;
+    if(type === 'd' || !type) return days;
+}
+
 module.exports = {
+    msToNumber,
     updateUserInDatabase,
     addUserToDatabase,
     getUserFromDatabase,
