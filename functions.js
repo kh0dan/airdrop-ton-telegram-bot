@@ -1,4 +1,5 @@
 const User = require('./models/user.models.js')
+const Referal = require('./models/referal.models.js')
 
 async function sendTrackerMessage(bot, message, error, from_id, from_username) {
     try {
@@ -55,7 +56,56 @@ function msToNumber(seconds, type) {
     if(type === 'd' || !type) return days;
 }
 
+async function addUserToReferals(user_init, user_inv) {
+    try {
+        const currentDate = Math.floor(Date.now() / 1000);
+
+        const newReferal = new Referal({ 
+            user_initiator: user_init, 
+            user_invited: user_inv,
+            date: currentDate })
+
+        const savedReferal = await newReferal.save();
+        return savedReferal;
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function getUserFromReferals(user_id) {
+    try {
+        return Referal.findOne({ user_invited: user_id });
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function countUserReferals(user_init) {
+    try {
+        return Referal.countDocuments({ user_initiator: user_init });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+async function updateReferalInDatabase(user_id, updateData) {
+    try {
+        const result = await Referal.updateOne(
+            { user_invited: user_id },
+            { $set: updateData }
+        );
+    
+        return result.nModified;
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 module.exports = {
+    countUserReferals,
+    addUserToReferals,
+    updateReferalInDatabase,
+    getUserFromReferals,
     msToNumber,
     updateUserInDatabase,
     addUserToDatabase,

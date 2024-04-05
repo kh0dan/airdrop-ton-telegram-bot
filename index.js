@@ -38,7 +38,6 @@ bot.start(async (ctx) => {
                 const menuButtons = text.kb_menu;
         
                 return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: messageString, parse_mode: "HTML", reply_markup: {resize_keyboard: true, keyboard: menuButtons}});
-                //return ctx.replywithpho(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
             } else if(user.user_state === 'start') {
                 await functions.sendTrackerMessage(bot, `send /start (${user.user_state}, нужно подтвердить подписку)`, ``, ctx.from.id, ctx.from.username);
                 const channelId = user.user_lang === 'ru' ? process.env.CHANNEL_RU : process.env.CHANNEL_EN;
@@ -48,6 +47,11 @@ bot.start(async (ctx) => {
 
                 return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `checkSub-${channelId}`}]]}});
             }
+        }
+
+        if(ctx.payload && ctx.payload.startsWith(`r`)) {
+            const initiator = ctx.payload.slice(1);
+            await functions.addUserToReferals(initiator, ctx.from.id);
         }
 
         let messageString = en.greeting.replace('{{name}}', ctx.from.first_name);
@@ -166,9 +170,20 @@ bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
         const messageString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance).replace('{{link}}', `${process.env.BOT_LINK}start=r${ctx.from.id}`);
         const menuButtons = text.kb_menu;
 
+        const referal = await functions.getUserFromReferals(ctx.from.id);
+        if(referal) {
+            await functions.updateReferalInDatabase(ctx.from.id, {active: 1});
+            const userInit = await functions.getUserFromDatabase(referal.user_initiator);
+            if(userInit) {
+                const totalRef = await functions.countUserReferals(referal.user_initiator);
+                await functions.updateUserInDatabase(referal.user_initiator, {user_balance: userInit.user_balance + main.price_for_fren});
+                const textForInit = userInit.user_lang === 'ru' ? ru : en;
+                const initString = textForInit.new_referal.replace('{{name}}', ctx.from.first_name).replace('{{referals}}', totalRef);
+                try { await bot.telegram.sendMessage(referal.user_initiator, initString, {parse_mode: "HTML"}); } catch (error) {}
+            }
+        }
+
         return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: messageString, parse_mode: "HTML", reply_markup: {resize_keyboard: true, keyboard: menuButtons}});
-        //return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: messageString, parse_mode: "HTML", reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}})
-        //return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
     } catch (error) {
         await functions.sendTrackerMessage(bot, `checkSub`, error, ctx.from.id, ctx.from.username);
         console.error(error);
@@ -238,6 +253,7 @@ bot.on('message', async (ctx) => {
                     const messageString = text.wallet.replace('{{wallet}}', userWallet);
                     return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `CancelWallet`}]]}})
                 } else {
+                    await ctx.deleteMessage();
                     const messageString = text.invalid_message;
                     return ctx.replyWithHTML(messageString);
                 }
