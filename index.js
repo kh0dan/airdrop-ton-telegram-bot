@@ -26,6 +26,15 @@ bot.telegram.setMyCommands([
     {command: '/language', description: '🔄 Change language'}
 ])
 
+cron.schedule('0 */30 * * * *', async () => {
+    try {
+        functions.checkTransactions(bot);
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `Cron schedule`, error, 0, '-');
+        console.error(error);
+    }
+});
+
 bot.start(async (ctx) => {
     try {
         if(ctx.chat.type !== 'private') return;
@@ -143,7 +152,7 @@ bot.action('CancelWallet', async (ctx) => {
     }
 });
 
-bot.action(/^((task)-\d+)$/, async (ctx) => {
+bot.action(/^((Complete)-\d+)$/, async (ctx) => {
     try {
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(!user) return ctx.deleteMessage();
@@ -155,6 +164,55 @@ bot.action(/^((task)-\d+)$/, async (ctx) => {
 
         const task = tasksJS.find(task => task.id === taskId);
         if(!task) return ctx.deleteMessage();
+
+        const isComplete = await functions.getTaskFromDatabase(ctx.from.id, taskId);
+        const alreadyCompletetring = user.user_lang === 'ru' ? `✅ Вы уже выполнили это задание.`: `✅ You have already completed this task.`
+        if(isComplete) return ctx.answerCbQuery(alreadyCompletetring);
+
+        if(task.available === 0) {
+            await ctx.deleteMessage();
+            const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nК сожалению, срок выполнения этого задания истёк.` : `<b>${task.name_en}</b>\n\nUnfortunately this task has expired.`;
+            return ctx.replyWithHTML(messageString);
+        }
+
+        await ctx.deleteMessage();
+
+        if(taskId === 1) {
+            if(!ctx.from.is_premium) {
+                const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nУ вас отсутствует Telegram Premium.` : `<b>${task.name_en}</b>\n\nYou don't have Telegram Premium.`;
+                const buttonString = user.user_lang === 'ru' ? `🌟 Купить Telegram Premium` : `🌟 Buy Telegram Premium`;
+                return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, url: main.buy_tg_premium}]]}});
+            }
+
+            await functions.addTaskToDatabase(ctx.from.id, taskId);
+            await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + task.reward});
+            const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n✅ Вы успешно выполнили задание и получили <b>${task.reward} ${main.name_jetton}</b>` : `<b>${task.name_en}</b>\n\n✅ You have successfully completed the task and received <b>${task.reward} ${main.name_jetton}</b>`;
+            return ctx.replyWithHTML(messageString);
+        } else if(taskId === 2) {
+            const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n🔄 Система автоматически проверит задание в течение часа и начислит Вам <b>${task.reward} ${main.name_jetton}</b>, если задание было выполнено.` : `<b>${task.name_en}</b>\n\n🔄 The system will automatically check the task within an hour and award you <b>${task.reward} ${main.name_jetton}</b> if the task was completed.`;
+            return ctx.replyWithHTML(messageString);
+        }
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `Complete`, error, ctx.from.id, ctx.from.username);
+        console.error(error);
+    }
+});
+
+bot.action(/^((task)-\d+)$/, async (ctx) => {
+    try {
+        const user = await functions.getUserFromDatabase(ctx.from.id);
+        if(!user) return ctx.deleteMessage();
+
+        const callbackData = ctx.match[1];
+        let taskId = parseInt(callbackData.split('-')[1]);
+
+        const task = tasksJS.find(task => task.id === taskId);
+        if(!task) return ctx.deleteMessage();
+
+        const isComplete = await functions.getTaskFromDatabase(ctx.from.id, taskId);
+        const alreadyCompletetring = user.user_lang === 'ru' ? `✅ Вы уже выполнили это задание.`: `✅ You have already completed this task.`
+        if(isComplete) return ctx.answerCbQuery(alreadyCompletetring);
+
         if(task.available === 0) {
             await ctx.deleteMessage();
             const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nК сожалению, срок выполнения этого задания истёк.` : `<b>${task.name_en}</b>\n\nUnfortunately this task has expired.`;
@@ -171,7 +229,7 @@ bot.action(/^((task)-\d+)$/, async (ctx) => {
         } else if(taskId === 2) {
             const transferString = user.user_lang === 'ru' ? `💎 Отправить транзакцию`: `💎 Submit transaction`
             const buttonString = user.user_lang === 'ru' ? `✅ Подтвердить выполнение`: `✅ Confirm completion`
-            return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: transferString, url: `${main.transfer}${ctx.from.id}`}], [{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
+            return ctx.replyWithHTML(messageString, {disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: transferString, url: `${main.transfer}${ctx.from.id}`}], [{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
         }
     } catch (error) {
         await functions.sendTrackerMessage(bot, `task`, error, ctx.from.id, ctx.from.username);
@@ -234,19 +292,23 @@ bot.on('message', async (ctx) => {
 
             if(user.user_state !== 'start') {
                 if(user.user_state === 'wallet') {
+                    const buttonString = user.user_lang === 'ru' ? '🚫 Отмена' : '🚫 Cancel';
+
+                    let userWallet = user.user_wallet;
+                    if(user.user_wallet === 'none') userWallet = '—'
+
                     if(ctx.message.text && ctx.message.text.length === 48) {
+                        const isExistWallet = await functions.getWalletFromDatabase(ctx.message.text);
+                        if(isExistWallet) {
+                            const messageString = user.user_lang === 'ru' ? '❌ Введенный адрес TON кошелька уже зарегистрирован в боте.\n\n<b>Пожалуйста, введите свой адрес.</b>' : '❌ The entered TON wallet address is already registered in the bot.\n\n<b>Please enter your address.</b>';
+                            return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `CancelWallet`}]]}})
+                        }
+
                         await functions.updateUserInDatabase(ctx.from.id, {user_wallet: ctx.message.text, user_state: 'active'});
                         await ctx.deleteMessage();
                         const messageString = user.user_lang === 'ru' ? '✅ Вы успешно изменили адрес своего TON кошелька!' : '✅ You have successfully changed your TON wallet address!';
                         return ctx.replyWithHTML(messageString + `\n\n<code>${ctx.message.text}</code>`);
                     } else {
-                        const buttonString = user.user_lang === 'ru' ? '🚫 Отмена' : '🚫 Cancel';
-
-                        let userWallet = user.user_wallet;
-                        if(user.user_wallet === 'none') userWallet = '—'
-
-                        await functions.updateUserInDatabase(ctx.from.id, {user_state: 'wallet'}); 
-
                         const messageString = user.user_lang === 'ru' ? '❌ Адрес TON кошелька должен состоять из 48-и символов.\n\n<b>Пожалуйста, введите корректный адрес.</b>' : '❌ The TON wallet address must consist of 48 characters.\n\n<b>Please enter a correct address.</b>';
                         return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `CancelWallet`}]]}})
                     }

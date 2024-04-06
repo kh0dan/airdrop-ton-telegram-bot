@@ -1,5 +1,9 @@
 const User = require('./models/user.models.js')
 const Referal = require('./models/referal.models.js')
+const Task = require('./models/task.models.js')
+const axios = require('axios');
+const main = require('./main.js');
+const tasksJS = require('./tasks.js');
 
 async function sendTrackerMessage(bot, message, error, from_id, from_username) {
     try {
@@ -101,7 +105,74 @@ async function updateReferalInDatabase(user_id, updateData) {
     }
 }
 
+async function getWalletFromDatabase(wallet) {
+    try {
+        return User.findOne({ user_wallet: wallet });
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function addTaskToDatabase(user_id, task_id) {
+    try {
+        const currentDate = Math.floor(Date.now() / 1000);
+
+        const newTask = new Task({ 
+            user_id: user_id, 
+            task_id: task_id,
+            date: currentDate })
+
+        const savedTask = await newTask.save();
+        return savedTask;
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function getTaskFromDatabase(user_id, task_id) {
+    try {
+        return Task.findOne({ user_id: user_id, task_id: task_id});
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function checkTransactions(bot) {
+    try {
+        let successSend = 0;
+        const taskId = 2;
+        const response = await axios.get(`https://tonapi.io/v2/blockchain/accounts/${process.env.TON_WALLET}/transactions?limit=100`);
+        const transactions = response.data.transactions;
+        for (const transaction of transactions) {
+            if (transaction.in_msg && transaction.in_msg.decoded_body && transaction.in_msg.decoded_body.text) {
+                const userId = parseInt(transaction.in_msg.decoded_body.text.substring(1));
+                const isTaskCompleted = await getTaskFromDatabase(userId, taskId);
+                if (!isTaskCompleted) {
+                    const user = await getUserFromDatabase(userId);
+                    if(user) {
+                        await addTaskToDatabase(userId, taskId);
+                        const task = tasksJS.find(task => task.id === taskId);
+                        await updateUserInDatabase(userId, {user_balance: user.user_balance + task.reward});
+                        const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n✅ Вы успешно выполнили задание и получили <b>${task.reward} ${main.name_jetton}</b>` : `<b>${task.name_en}</b>\n\n✅ You have successfully completed the task and received <b>${task.reward} ${main.name_jetton}</b>`;
+                        await bot.telegram.sendMessage(userId, messageString, {parse_mode: "HTML"});
+                        await new Promise((resolve) => setTimeout(resolve, 10000));
+                        successSend++
+                    }
+                }
+            }
+        }
+
+        await sendTrackerMessage(bot, `Успешное подтверждение ${successSend} транзакций в блокчейне!`, ``, 0, ``)
+    } catch (error) {
+        console.error(error);
+    }
+};
+
 module.exports = {
+    checkTransactions,
+    getTaskFromDatabase,
+    addTaskToDatabase,
+    getWalletFromDatabase,
     countUserReferals,
     addUserToReferals,
     updateReferalInDatabase,

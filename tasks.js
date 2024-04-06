@@ -1,3 +1,5 @@
+const main = require('./main.js');
+
 const tasks = [
     {
         id: 1,
@@ -10,11 +12,11 @@ const tasks = [
     },
     {
         id: 2,
-        name_ru: "👛 Подтвердить кошелёк",
-        name_en: "👛 Confirm wallet",
-        description_ru: "Вам нужно отправить $0,02, чтобы подтвердить свой кошелёк.",
-        description_en: "You need to send $0.02 to verify your wallet.",
-        reward: 10000,
+        name_ru: "🔥👛 Подтвердить кошелёк",
+        name_en: "🔥👛 Confirm wallet",
+        description_ru: `Вам нужно отправить $0,02, чтобы подтвердить свой кошелёк.\n<i>Вся собранная сумма будет направлена в ликвидность жетона.</i>\n\n<a href="https://telegra.ph/YOD-DROP-04-06"><b>Отправить вручную</b></a>`,
+        description_en: `You need to send $0.02 to verify your wallet.\n<i>The entire collected amount will be used for token liquidity.</i>\n\n<a href="https://telegra.ph/YOD-DROP-04-06"><b>Send manually</b></a>`,
+        reward: main.price_for_transaction,
         available: 1
     }
 ];
