@@ -11,5 +11,6 @@ module.exports = {
     picture_tasks: 'AgACAgIAAxkBAAIGOGYRQzAzjGeTCL6edk20PwYEIOOQAAIp1TEb0zqISJTHPx7YQuloAQADAgADeQADNAQ',
     transfer: 'https://app.tonkeeper.com/transfer/UQBzKFu3gn7CHrbGnWnWXNZnFinYrnT5ryc34N4G04oQxbit?amount=4000000&text=t',
     buy_tg_premium: 'https://fragment.com/premium/gift',
-    info_transfer: 'https://telegra.ph/YOD-DROP-04-06'
+    info_transfer: 'https://telegra.ph/YOD-DROP-04-06',
+    rating_rewards: [19000, 17000, 15000, 13000, 11000, 9000, 7000, 5000, 3000, 1000]
 };

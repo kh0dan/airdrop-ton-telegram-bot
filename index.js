@@ -4,11 +4,25 @@ const { Telegraf } = require('telegraf');
 const rateLimit = require('telegraf-ratelimit');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
+const moment = require('moment');
+require('moment/locale/ru')
 
 const main = require('./main.js');
 const en = require('./texts/en.js');
 const ru = require('./texts/ru.js');
 const tasksJS = require('./tasks.js');
+
+let logs = {
+    log_call: 0,
+    log_reg: 0,
+    log_ref: 0,
+    log_tasks: 0,
+    log_sql: 0
+};
+
+module.exports = {
+    logs
+};
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -26,11 +40,44 @@ bot.telegram.setMyCommands([
     {command: '/language', description: '🔄 Change language'}
 ])
 
+cron.schedule('0 0 20 * * 5', async () => {
+    try {
+        functions.ResetRating(bot);
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `Cron schedule friday 17 UTC`, error, 0, '-');
+        console.error(error);
+    }
+});
+
+cron.schedule('0 0 15 * * *', async () => {
+    try {
+        await functions.GetRatingUsers();
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `Cron schedule 15`, error, 0, '-');
+        console.error(error);
+    }
+});
+
 cron.schedule('0 */30 * * * *', async () => {
     try {
         functions.checkTransactions(bot);
     } catch (error) {
-        await functions.sendTrackerMessage(bot, `Cron schedule`, error, 0, '-');
+        await functions.sendTrackerMessage(bot, `Cron schedule */30`, error, 0, '-');
+        console.error(error);
+    }
+});
+
+cron.schedule('00 00 00 * * *', async () => {
+    try {
+        const currentDate = moment().subtract(1, 'day').format('D MMMM YYYY');
+        const message_date = `<b>Ежедневная статистика с 00:00 по 23:59:59 ${currentDate}</b>`;
+
+        const users = await functions.countUsersInDatabase();
+        await functions.sendTrackerMessage(bot, `${message_date}\n\nЧисло юзеров: <code>${users}</code>\nВзаимодействий с ботом: <code>${logs.log_call}</code>\nЗарегистрировано пользователей: <code>${logs.log_reg}</code>\nНовых рефералов: <code>${logs.log_ref}</code>\nВыполнено заданий: <code>${logs.log_tasks}</code>\nОбращений в базу: <code>${logs.log_sql}</code>`, new Date().getTime(), 0, ``)
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        logs.log_call = 0; logs.log_ref = 0; logs.log_reg = 0; logs.log_sql = 0; logs.log_tasks = 0;
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `Cron schedule 00`, error, 0, '-');
         console.error(error);
     }
 });
@@ -38,6 +85,7 @@ cron.schedule('0 */30 * * * *', async () => {
 bot.start(async (ctx) => {
     try {
         if(ctx.chat.type !== 'private') return;
+        logs.log_call++
 
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user) {
@@ -79,8 +127,21 @@ bot.start(async (ctx) => {
     }
 })
 
+bot.command('info', async (ctx) => {
+    try {
+        if(ctx.from.id !== 894923798) return;
+
+        const users = await functions.countUsersInDatabase();
+        return ctx.replyWithHTML(`Статистика с 00:00 по сейчас:\n\nЧисло юзеров: <code>${users}</code>\nВзаимодействий с ботом: <code>${logs.log_call}</code>\nЗарегистрировано пользователей: <code>${logs.log_reg}</code>\nНовых рефералов: <code>${logs.log_ref}</code>\nВыполнено заданий: <code>${logs.log_tasks}</code>\nОбращений в базу: <code>${logs.log_sql}</code>`)
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, bot.command, error, ctx.from.id, ctx.from.username);
+        console.error(error);
+    }
+});
+
 bot.command('language', async (ctx) => {
     try {
+        logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user && user.user_state !== 'start') {
             const text = user.user_lang === 'ru' ? en : ru; // en и ru наоборот
@@ -93,8 +154,28 @@ bot.command('language', async (ctx) => {
     }
 })
 
+bot.action('Balance', async (ctx) => {
+    try {
+        logs.log_call++
+        const user = await functions.getUserFromDatabase(ctx.from.id);
+        if(!user) return ctx.deleteMessage();
+
+        try { await ctx.telegram.editMessageReplyMarkup(ctx.from.id, ctx.update.callback_query.message.message_id, null); } catch (error) {}
+
+        const text = user.user_lang === 'ru' ? ru : en;
+        const menuString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance).replace('{{link}}', `${process.env.BOT_LINK}start=r${ctx.from.id}`);
+        const menuButtons = text.kb_menu;
+
+        return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: menuString, parse_mode: "HTML", reply_markup: {resize_keyboard: true, keyboard: menuButtons}});
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `startBot`, error, ctx.from.id, ctx.from.username);
+        console.error(error);
+    }
+})
+
 bot.action(/^((startBot)-\S+)$/, async (ctx) => {
     try {
+        logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         const callbackData = ctx.match[1];
         const lang = callbackData.split('-')[1];
@@ -135,6 +216,7 @@ bot.action(/^((startBot)-\S+)$/, async (ctx) => {
 
 bot.action('CancelWallet', async (ctx) => {
     try {
+        logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(!user || user.user_state !== 'wallet') return ctx.deleteMessage();
 
@@ -154,10 +236,9 @@ bot.action('CancelWallet', async (ctx) => {
 
 bot.action(/^((Complete)-\d+)$/, async (ctx) => {
     try {
+        logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(!user) return ctx.deleteMessage();
-
-        const text = user.user_lang === 'ru' ? ru : en;
 
         const callbackData = ctx.match[1];
         let taskId = parseInt(callbackData.split('-')[1]);
@@ -200,6 +281,7 @@ bot.action(/^((Complete)-\d+)$/, async (ctx) => {
 
 bot.action(/^((task)-\d+)$/, async (ctx) => {
     try {
+        logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(!user) return ctx.deleteMessage();
 
@@ -239,6 +321,7 @@ bot.action(/^((task)-\d+)$/, async (ctx) => {
 
 bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
     try {
+        logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user.user_state !== 'start') return ctx.deleteMessage();
 
@@ -284,6 +367,7 @@ bot.action(/^((checkSub)-\S+)$/, async (ctx) => {
 
 bot.on('message', async (ctx) => {
     try {
+        logs.log_call++
         if(ctx.chat.type !== 'private') return;
 
         const user = await functions.getUserFromDatabase(ctx.from.id);
@@ -293,9 +377,6 @@ bot.on('message', async (ctx) => {
             if(user.user_state !== 'start') {
                 if(user.user_state === 'wallet') {
                     const buttonString = user.user_lang === 'ru' ? '🚫 Отмена' : '🚫 Cancel';
-
-                    let userWallet = user.user_wallet;
-                    if(user.user_wallet === 'none') userWallet = '—'
 
                     if(ctx.message.text && ctx.message.text.length === 48) {
                         const isExistWallet = await functions.getWalletFromDatabase(ctx.message.text);
@@ -327,21 +408,22 @@ bot.on('message', async (ctx) => {
                     const currentDate = Math.floor(Date.now() / 1000);
                     const reward_time = currentDate - user.user_timer;
 
+                    const buttonString = user.user_lang === 'ru' ? '💎 Баланс' : '💎 Balance';
+
                     if(reward_time < timer) {
                         const remainingTime = functions.msToNumber(timer - reward_time, 'min');
                         const messageString = text.claim_time.replace('{{time}}', remainingTime);
-                        return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id});
+                        return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Balance`}]]}});
                     }
 
                     const messageString = text.claim_reward.replace('{{name}}', ctx.from.first_name);
                     await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + main.price_for_click, user_timer: currentDate});
-                    return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id})
+                    return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Balance`}]]}})
                 } else if(terms.includes(ctx.message.text)) {
                     const buttonString = user.user_lang === 'ru' ? 'Пригласить друга 👥' : 'Invite fren 👥';
                     const messageString = text.terms.replace('{{link}}', `${process.env.BOT_LINK}start=r${ctx.from.id}`);
                     
                     return bot.telegram.sendPhoto(ctx.from.id, main.picture_terms, {caption: messageString, reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, parse_mode: "HTML", reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
-                    //return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}})
                 } else if(wallet.includes(ctx.message.text)) {
                     const buttonString = user.user_lang === 'ru' ? '🚫 Отмена' : '🚫 Cancel';
 
@@ -362,9 +444,12 @@ bot.on('message', async (ctx) => {
                     
                     const messageString = text.tasks;
                     return bot.telegram.sendPhoto(ctx.from.id, main.picture_tasks, {caption: messageString, reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, parse_mode: "HTML", reply_markup: {inline_keyboard: taskButtons}});
-                    //return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: taskButtons}});
                 } else if(rating.includes(ctx.message.text)) {
+                    const messageString = text.rating;
+                    const buttonString = user.user_lang === 'ru' ? 'Пригласить друга 👥' : 'Invite fren 👥';
 
+                    const usersRating = await functions.generateRatingMessage(user);
+                    return ctx.replyWithHTML(messageString + usersRating, {reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
                 } else {
                     await ctx.deleteMessage();
                     const messageString = text.invalid_message;

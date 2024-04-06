@@ -15,6 +15,7 @@ module.exports = {
     invalid_message: `<b>❌ Unknown command!</b>\n\nUse <b>/start</b> and keyboard buttons to interact with the bot.`,
     new_referal: `<b>ℹ️ {{name}} joined the bot using your link.</b>\n\n<b>➕ ${main.price_for_fren} ${main.name_jetton}</b></b>\n\nTotal referrals: <b>{{referals}}</b>`,
     tasks: `<b>✍️ Available tasks:</b>\n\nTo complete a task click on the button with the name of the task.`,
+    rating: `<b>🥇 The rating is updated daily at 12:00 UTC</b>. \n\nResults are summed up every Friday at 17:00 UTC, a prize pool of <b>$100,000 ${main.name_jetton}</b> is distributed depending on the position in the TOP.\n\n<b>🔥 Invite friends and become a whale 🐳 of ${main.name_jetton}!</b>\n\n`,
     kb_menu: [
         [`💎 Claim ${main.name_jetton}`],
         ['📃 Terms', '👛 Wallet'],
