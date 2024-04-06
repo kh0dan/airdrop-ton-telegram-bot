@@ -154,7 +154,7 @@ async function checkTransactions(bot) {
                         const task = tasksJS.find(task => task.id === taskId);
                         await updateUserInDatabase(userId, {user_balance: user.user_balance + task.reward});
                         const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n✅ Вы успешно выполнили задание и получили <b>${task.reward} ${main.name_jetton}</b>` : `<b>${task.name_en}</b>\n\n✅ You have successfully completed the task and received <b>${task.reward} ${main.name_jetton}</b>`;
-                        await bot.telegram.sendMessage(userId, messageString, {parse_mode: "HTML"});
+                        try { await bot.telegram.sendMessage(userId, messageString, {parse_mode: "HTML"}); } catch (error) {}
                         await new Promise((resolve) => setTimeout(resolve, 10000));
                         successSend++
                     }
@@ -162,7 +162,7 @@ async function checkTransactions(bot) {
             }
         }
 
-        await sendTrackerMessage(bot, `Успешное подтверждение ${successSend} транзакций в блокчейне!`, ``, 0, ``)
+        if(successSend > 0) await sendTrackerMessage(bot, `Успешное подтверждение ${successSend} транзакций в блокчейне!`, ``, 0, ``)
     } catch (error) {
         console.error(error);
     }

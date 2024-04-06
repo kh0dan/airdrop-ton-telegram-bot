@@ -339,7 +339,9 @@ bot.on('message', async (ctx) => {
                 } else if(terms.includes(ctx.message.text)) {
                     const buttonString = user.user_lang === 'ru' ? 'Пригласить друга 👥' : 'Invite fren 👥';
                     const messageString = text.terms.replace('{{link}}', `${process.env.BOT_LINK}start=r${ctx.from.id}`);
-                    return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}})
+                    
+                    return bot.telegram.sendPhoto(ctx.from.id, main.picture_terms, {caption: messageString, reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, parse_mode: "HTML", reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}});
+                    //return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]}})
                 } else if(wallet.includes(ctx.message.text)) {
                     const buttonString = user.user_lang === 'ru' ? '🚫 Отмена' : '🚫 Cancel';
 
@@ -359,7 +361,8 @@ bot.on('message', async (ctx) => {
                     }]);
                     
                     const messageString = text.tasks;
-                    return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: taskButtons}});
+                    return bot.telegram.sendPhoto(ctx.from.id, main.picture_tasks, {caption: messageString, reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, parse_mode: "HTML", reply_markup: {inline_keyboard: taskButtons}});
+                    //return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: taskButtons}});
                 } else if(rating.includes(ctx.message.text)) {
 
                 } else {
