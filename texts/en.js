@@ -14,6 +14,7 @@ module.exports = {
     wallet: `We recommend using <b>Tonkeeper</b>/Tonhub/MyTonWallet\n\n<b>👛 Your current wallet:</b> <code>{{wallet}}</code>\n\n<a href="https://app.tonkeeper.com"><b>(click to open Tonkeeper)</b></a>\n\nEnter your TON address:`,
     invalid_message: `<b>❌ Unknown command!</b>\n\nUse <b>/start</b> and keyboard buttons to interact with the bot.`,
     new_referal: `<b>ℹ️ {{name}} joined the bot using your link.</b>\n\n<b>➕ ${main.price_for_fren} ${main.name_jetton}</b></b>\n\nTotal referrals: <b>{{referals}}</b>`,
+    tasks: `<b>✍️ Available tasks:</b>\n\nTo complete a task click on the button with the name of the task.`,
     kb_menu: [
         [`💎 Claim ${main.name_jetton}`],
         ['📃 Terms', '👛 Wallet'],

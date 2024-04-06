@@ -8,6 +8,7 @@ const cron = require('node-cron');
 const main = require('./main.js');
 const en = require('./texts/en.js');
 const ru = require('./texts/ru.js');
+const tasksJS = require('./tasks.js');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -131,9 +132,6 @@ bot.action('CancelWallet', async (ctx) => {
         await ctx.deleteMessage();
         await functions.updateUserInDatabase(ctx.from.id, {user_state: 'active'});
 
-        await ctx.replyWithChatAction('typing');
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
         const text = user.user_lang === 'ru' ? ru : en;
         const menuString = text.menu.replace('{{name}}', ctx.from.first_name).replace('{{balance}}', user.user_balance).replace('{{link}}', `${process.env.BOT_LINK}start=r${ctx.from.id}`);
         const menuButtons = text.kb_menu;
@@ -141,6 +139,42 @@ bot.action('CancelWallet', async (ctx) => {
         return bot.telegram.sendPhoto(ctx.from.id, main.picture_menu, {caption: menuString, parse_mode: "HTML", reply_markup: {resize_keyboard: true, keyboard: menuButtons}});
     } catch (error) {
         await functions.sendTrackerMessage(bot, `CancelWallet`, error, ctx.from.id, ctx.from.username);
+        console.error(error);
+    }
+});
+
+bot.action(/^((task)-\d+)$/, async (ctx) => {
+    try {
+        const user = await functions.getUserFromDatabase(ctx.from.id);
+        if(!user) return ctx.deleteMessage();
+
+        const text = user.user_lang === 'ru' ? ru : en;
+
+        const callbackData = ctx.match[1];
+        let taskId = parseInt(callbackData.split('-')[1]);
+
+        const task = tasksJS.find(task => task.id === taskId);
+        if(!task) return ctx.deleteMessage();
+        if(task.available === 0) {
+            await ctx.deleteMessage();
+            const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nК сожалению, срок выполнения этого задания истёк.` : `<b>${task.name_en}</b>\n\nUnfortunately this task has expired.`;
+            return ctx.replyWithHTML(messageString);
+        }
+
+        await ctx.deleteMessage();
+
+        const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n${task.description_ru}\n\n<b>💎 Награда: ${task.reward} ${main.name_jetton}</b> <i>(твой баланс: ${user.user_balance} ${main.name_jetton})</i>` : `<b>${task.name_en}</b>\n\n${task.description_en}\n\n<b>💎 Reward: ${task.reward} ${main.name_jetton}</b> <i>(your balance: ${user.user_balance} ${main.name_jetton})</i>`;
+        
+        if(taskId === 1) {
+            const buttonString = user.user_lang === 'ru' ? `✅ Подтвердить выполнение`: `✅ Confirm completion`
+            return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
+        } else if(taskId === 2) {
+            const transferString = user.user_lang === 'ru' ? `💎 Отправить транзакцию`: `💎 Submit transaction`
+            const buttonString = user.user_lang === 'ru' ? `✅ Подтвердить выполнение`: `✅ Confirm completion`
+            return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: transferString, url: `${main.transfer}${ctx.from.id}`}], [{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
+        }
+    } catch (error) {
+        await functions.sendTrackerMessage(bot, `task`, error, ctx.from.id, ctx.from.username);
         console.error(error);
     }
 });
@@ -221,6 +255,8 @@ bot.on('message', async (ctx) => {
                 const claimReward = ['💎 Получить $YOD', '💎 Claim $YOD'];
                 const terms = ['📃 Условия', '📃 Terms'];
                 const wallet = ['👛 Кошелёк', '👛 Wallet'];
+                const tasks = ['✍️ Задания', '✍️ Tasks'];
+                const rating = ['🥇 Рейтинг', '🥇 Rating']
 
                 if(claimReward.includes(ctx.message.text)) {
                     let timer = 3600;
@@ -252,6 +288,18 @@ bot.on('message', async (ctx) => {
 
                     const messageString = text.wallet.replace('{{wallet}}', userWallet);
                     return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `CancelWallet`}]]}})
+                } else if(tasks.includes(ctx.message.text)) {
+                    const availableTasks = tasksJS.filter(task => task.available === 1);
+
+                    const taskButtons = availableTasks.map(task => [{
+                        text: user.user_lang === 'ru' ? `${task.name_ru} | ${task.reward} ${main.name_jetton}` : `${task.name_en} | ${task.reward} ${main.name_jetton}`,
+                        callback_data: `task-${task.id}`
+                    }]);
+                    
+                    const messageString = text.tasks;
+                    return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: taskButtons}});
+                } else if(rating.includes(ctx.message.text)) {
+
                 } else {
                     await ctx.deleteMessage();
                     const messageString = text.invalid_message;
