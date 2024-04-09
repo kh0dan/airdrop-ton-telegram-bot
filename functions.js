@@ -7,6 +7,9 @@ const axios = require('axios');
 const main = require('./main.js');
 const tasksJS = require('./tasks.js');
 
+const en = require('./texts/en.js');
+const ru = require('./texts/ru.js');
+
 let { logs } = require('./index.js');
 
 async function sendTrackerMessage(bot, message, error, from_id, from_username) {
@@ -201,7 +204,8 @@ async function GetRatingUsers() {
             {
                 $match: {
                     date: { $gte: fridayStart.getTime() / 1000, $lt: fridayEnd.getTime() / 1000 },
-                    active: 1
+                    active: 1,
+                    user_initiator: { $ne: 894923798 } // Исключение меня
                 }
             },
             {
@@ -219,7 +223,7 @@ async function GetRatingUsers() {
             {
                 $limit: 10
             }
-        ]);             
+        ]);            
         
         console.log(topInviters);
         await updateRating(topInviters);
@@ -318,7 +322,66 @@ async function countUsersInDatabase() {
     }
 }
 
+async function getAllUserIds() {
+    try {
+        const users = await User.find({}).exec();
+        const uniqueUserIds = [...new Set(users.map(user => user.user_id))];
+        return uniqueUserIds;
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
+async function sendAllUsers(bot, ctx) {
+    try {
+        if(ctx.from.id !== 894923798) return;
+        
+        const users = await getAllUserIds(); 
+
+        const packages = [];
+        while (users.length > 0) {
+            packages.push(users.splice(0, 30));
+        }
+
+        let successCount = 0;
+
+        for (let i = 0; i < packages.length; i++) {
+            const package = packages[i];
+            for (let j = 0; j < package.length; j++) {
+                const chatId = package[j];
+
+                console.log(`Отправляю ${chatId}...`)
+                const userMes = await getUserFromDatabase(chatId);
+                const text = userMes.user_lang === 'ru' ? ru : en;
+                const messageString = text.messaging;
+                const buttonString = userMes.user_lang === 'ru' ? 'Пригласить друга 👥' : 'Invite fren 👥';
+                
+                try {
+                    await bot.telegram.sendPhoto(chatId, main.picture_messaging, {caption: messageString, disable_web_page_preview: true, parse_mode: "HTML", reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${chatId}`}]]}});
+                    //await bot.telegram.sendMessage(chatId, messageString, {parse_mode: "HTML", disable_web_page_preview: true, disable_notification: true, reply_markup: {inline_keyboard: [[{text: buttonString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${chatId}`}]]}});
+                    console.log(`Успешно ${chatId}`)
+                    successCount++;
+                    await new Promise((resolve) => setTimeout(resolve, 2000));
+                } catch (err) {
+                    console.log(`Неудача ${chatId}`)
+                    if (err.code === 429) {
+                        await new Promise((resolve) => setTimeout(resolve, 10000));
+                        j--;
+                    }
+                }
+            }
+            await new Promise((resolve) => setTimeout(resolve, 15000));
+        }        
+
+        return sendTrackerMessage(bot, `Рассылка пользователям завершена, успешно отправлено ${successCount} сообщений.`, ``, 0, ``);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 module.exports = {
+    sendAllUsers,
     countUsersInDatabase,
     ResetRating,
     generateRatingMessage,

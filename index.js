@@ -60,6 +60,10 @@ cron.schedule('0 0 15 * * *', async () => {
 
 cron.schedule('0 */30 * * * *', async () => {
     try {
+        const taskId = 2;
+        const task = tasksJS.find(task => task.id === taskId);
+        if(task.available === 0) return;
+
         functions.checkTransactions(bot);
     } catch (error) {
         await functions.sendTrackerMessage(bot, `Cron schedule */30`, error, 0, '-');
@@ -137,6 +141,10 @@ bot.command('info', async (ctx) => {
         await functions.sendTrackerMessage(bot, bot.command, error, ctx.from.id, ctx.from.username);
         console.error(error);
     }
+});
+
+bot.command('send_users', async (ctx) => {
+    functions.sendAllUsers(bot, ctx);
 });
 
 bot.command('language', async (ctx) => {
@@ -416,9 +424,30 @@ bot.on('message', async (ctx) => {
                         return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Balance`}]]}});
                     }
 
-                    const messageString = text.claim_reward.replace('{{name}}', ctx.from.first_name);
-                    await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + main.price_for_click, user_timer: currentDate});
-                    return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Balance`}]]}})
+                    await functions.sendTrackerMessage(bot, `claim reward (${user.user_state})`, ``, ctx.from.id, ctx.from.username);
+
+                    let rewardForClick = main.price_for_click;
+
+                    let messageString = text.claim_reward.replace('{{name}}', ctx.from.first_name);
+                    let buttons = [[{text: buttonString, callback_data: `Balance`}]]
+
+                    const totalRef = await functions.countUserReferals(ctx.from.id);
+                    console.log(totalRef)
+                    if(!totalRef || totalRef < main.total_frens_for_x2) {
+                        const frensToX2 = main.total_frens_for_x2 - totalRef || min.total_frens_for_x2;
+                        const refString = user.user_lang === 'ru' ? `\n\n👥 Пригласи еще <b>${frensToX2} друзей</b>, чтобы получать в 2 раза больше <b>${main.name_jetton}</b>` : `\n\n👥 Invite <b>${frensToX2} more frens</b> to get 2 times more <b>${main.name_jetton}</b>`;
+                        const buttonFrenString = user.user_lang === 'ru' ? 'Пригласить друга 👥' : 'Invite fren 👥';
+                        messageString = messageString + refString;
+                        buttons = [[{text: buttonString, callback_data: `Balance`}],
+                        [{text: buttonFrenString, url: `https://t.me/share/url?url=${process.env.BOT_LINK}start=r${ctx.from.id}`}]]
+                    } else if(totalRef && totalRef >= main.total_frens_for_x2) {
+                        rewardForClick = rewardForClick*2;
+                    }
+
+                    messageString = messageString.replace('{{reward}}', rewardForClick);
+
+                    await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + rewardForClick, user_timer: currentDate});
+                    return ctx.replyWithHTML(messageString, {reply_to_message_id: ctx.message.message_id, reply_markup: {inline_keyboard: buttons}})
                 } else if(terms.includes(ctx.message.text)) {
                     const buttonString = user.user_lang === 'ru' ? 'Пригласить друга 👥' : 'Invite fren 👥';
                     const messageString = text.terms.replace('{{link}}', `${process.env.BOT_LINK}start=r${ctx.from.id}`);
