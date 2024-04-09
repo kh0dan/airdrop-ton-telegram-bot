@@ -130,7 +130,7 @@ async function getWalletFromDatabase(wallet) {
     }
 };
 
-async function addTaskToDatabase(user_id, task_id) {
+async function addTaskToDatabase(user_id, task_id, comment) {
     try {
         logs.log_sql++
         logs.log_tasks++
@@ -139,7 +139,8 @@ async function addTaskToDatabase(user_id, task_id) {
         const newTask = new Task({ 
             user_id: user_id, 
             task_id: task_id,
-            date: currentDate })
+            date: currentDate,
+            comment: comment })
 
         const savedTask = await newTask.save();
         return savedTask;
@@ -152,6 +153,15 @@ async function getTaskFromDatabase(user_id, task_id) {
     try {
         logs.log_sql++
         return Task.findOne({ user_id: user_id, task_id: task_id});
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function getTaskFromDatabaseByComment(task_id, comment) {
+    try {
+        logs.log_sql++
+        return Task.findOne({ task_id: task_id, comment: comment});
     } catch (error) {
         console.error(error);
     }
@@ -183,6 +193,17 @@ async function checkTransactions(bot) {
         }
 
         if(successSend > 0) await sendTrackerMessage(bot, `Успешное подтверждение ${successSend} транзакций в блокчейне!`, ``, 0, ``)
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function checkNotcoinVouchers(wallet) {
+    try {
+        const response = await axios.get(`https://tonapi.io/v2/accounts/${wallet}/nfts?collection=0%3Ae6923eb901bfe6d1a65a5bc2292b0e2462a220213c3f1d1b2d60491543a34860&limit=1000&offset=0&indirect_ownership=false`);
+        if (response.data.nft_items && response.data.nft_items.length) {
+            return true;
+        } else return;
     } catch (error) {
         console.error(error);
     }
@@ -398,5 +419,7 @@ module.exports = {
     updateUserInDatabase,
     addUserToDatabase,
     getUserFromDatabase,
-    sendTrackerMessage
+    sendTrackerMessage,
+    checkNotcoinVouchers,
+    getTaskFromDatabaseByComment
 }

@@ -12,6 +12,8 @@ const en = require('./texts/en.js');
 const ru = require('./texts/ru.js');
 const tasksJS = require('./tasks.js');
 
+const TaskNotcoinTimer = {};
+
 let logs = {
     log_call: 0,
     log_reg: 0,
@@ -280,6 +282,37 @@ bot.action(/^((Complete)-\d+)$/, async (ctx) => {
         } else if(taskId === 2) {
             const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n🔄 Система автоматически проверит задание в течение часа и начислит Вам <b>${task.reward} ${main.name_jetton}</b>, если задание было выполнено.` : `<b>${task.name_en}</b>\n\n🔄 The system will automatically check the task within an hour and award you <b>${task.reward} ${main.name_jetton}</b> if the task was completed.`;
             return ctx.replyWithHTML(messageString);
+        } else if(taskId === 3) {
+            if(user.user_wallet === 'none') {
+                const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nУ вас не подключен Кошелёк.` : `<b>${task.name_en}</b>\n\nYour Wallet is not connected.`;
+                return ctx.replyWithHTML(messageString);
+            }
+
+            const isComplete = await functions.getTaskFromDatabaseByComment(taskId, user.user_wallet);
+            if(isComplete) {
+                const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nЗадание с этого кошелька уже было выполнено.` : `<b>${task.name_en}</b>\n\nThe task from this wallet has already been completed.`;
+                return ctx.replyWithHTML(messageString);
+            }
+
+            if(TaskNotcoinTimer[ctx.from.id]) {
+                const timerString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n⏰ Попробуйте повторить через минуту.`: `<b>${task.name_ru}</b>\n\n⏰ Try again in a minute.`
+                return ctx.replyWithHTML(timerString);
+            }
+
+            const isVoucher = await functions.checkNotcoinVouchers(user.user_wallet);
+            if(!isVoucher) {
+                TaskNotcoinTimer[ctx.from.id] = setTimeout(() => {
+                    delete TaskNotcoinTimer[ctx.from.id];
+                }, 30000);
+
+                const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\nУ вас отсутствует Notcoin Voucher.` : `<b>${task.name_en}</b>\n\nYou do not have a Notcoin Voucher.`;
+                return ctx.replyWithHTML(messageString);
+            }
+
+            await functions.addTaskToDatabase(ctx.from.id, taskId, user.user_wallet);
+            await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + task.reward});
+            const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n✅ Вы успешно выполнили задание и получили <b>${task.reward} ${main.name_jetton}</b>` : `<b>${task.name_en}</b>\n\n✅ You have successfully completed the task and received <b>${task.reward} ${main.name_jetton}</b>`;
+            return ctx.replyWithHTML(messageString);
         }
     } catch (error) {
         await functions.sendTrackerMessage(bot, `Complete`, error, ctx.from.id, ctx.from.username);
@@ -313,14 +346,16 @@ bot.action(/^((task)-\d+)$/, async (ctx) => {
 
         const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n${task.description_ru}\n\n<b>💎 Награда: ${task.reward} ${main.name_jetton}</b> <i>(твой баланс: ${user.user_balance} ${main.name_jetton})</i>` : `<b>${task.name_en}</b>\n\n${task.description_en}\n\n<b>💎 Reward: ${task.reward} ${main.name_jetton}</b> <i>(your balance: ${user.user_balance} ${main.name_jetton})</i>`;
         
+        const buttonString = user.user_lang === 'ru' ? `✅ Подтвердить выполнение`: `✅ Confirm completion`
+
         if(taskId === 1) {
-            const buttonString = user.user_lang === 'ru' ? `✅ Подтвердить выполнение`: `✅ Confirm completion`
             return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
         } else if(taskId === 2) {
             const transferString = user.user_lang === 'ru' ? `💎 Отправить транзакцию`: `💎 Submit transaction`
-            const buttonString = user.user_lang === 'ru' ? `✅ Подтвердить выполнение`: `✅ Confirm completion`
             return ctx.replyWithHTML(messageString, {disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: transferString, url: `${main.transfer}${ctx.from.id}`}], [{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
-        }
+        } else if(taskId === 3) {
+            return ctx.replyWithHTML(messageString, {disable_web_page_preview: true, reply_markup: {inline_keyboard: [[{text: buttonString, callback_data: `Complete-${task.id}`}]]}});
+        } 
     } catch (error) {
         await functions.sendTrackerMessage(bot, `task`, error, ctx.from.id, ctx.from.username);
         console.error(error);

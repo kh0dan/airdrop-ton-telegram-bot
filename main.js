@@ -1,7 +1,7 @@
 module.exports = {
     price_for_fren: 500,
     price_for_click: 100,
-    price_for_transaction: 10000,
+    price_for_transaction: 50000,
     total_frens_for_x2: 3,
     name_jetton: '$YOD',
     name_crypto: 'YOD',

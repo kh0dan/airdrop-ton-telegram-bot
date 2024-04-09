@@ -18,6 +18,15 @@ const tasks = [
         description_en: `You need to send $0.02 to verify your wallet.\n<i>The entire collected amount will be used for ${main.name_jetton} liquidity.</i>\n\n<a href="https://telegra.ph/YOD-DROP-04-06"><b>Send manually</b></a>`,
         reward: main.price_for_transaction,
         available: 0
+    },
+    {
+        id: 3,
+        name_ru: "💛 Notcoin",
+        name_en: "💛 Notcoin",
+        description_ru: `Вам нужно иметь ваучер Notcoin на подключенном к боту кошельке.`,
+        description_en: `You need to have a Notcoin voucher on the wallet connected to the bot.`,
+        reward: 22222,
+        available: 1
     }
 ];
 
