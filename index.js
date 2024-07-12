@@ -53,7 +53,7 @@ cron.schedule('0 0 20 * * 5', async () => {
 
 cron.schedule('0 0 15 * * *', async () => {
     try {
-        await functions.GetRatingUsers();
+        await functions.GetRatingUsers(bot);
     } catch (error) {
         await functions.sendTrackerMessage(bot, `Cron schedule 15`, error, 0, '-');
         console.error(error);
@@ -154,7 +154,7 @@ bot.command('language', async (ctx) => {
         logs.log_call++
         const user = await functions.getUserFromDatabase(ctx.from.id);
         if(user && user.user_state !== 'start') {
-            const text = user.user_lang === 'ru' ? en : ru; // en и ru наоборот
+            const text = user.user_lang === 'ru' ? en : ru; 
             const messageString = text.language;
             return ctx.replyWithHTML(messageString, {reply_markup: {inline_keyboard: [[{text: '🇬🇧 English', callback_data: `startBot-en`}], [{text: '🇷🇺 Русский', callback_data: 'startBot-ru'}]]}});
         }
@@ -277,6 +277,7 @@ bot.action(/^((Complete)-\d+)$/, async (ctx) => {
 
             await functions.addTaskToDatabase(ctx.from.id, taskId);
             await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + task.reward});
+            await functions.sendTrackerMessage(bot, `✅ complete task (${task.name_en})`, ``, ctx.from.id, ctx.from.username);
             const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n✅ Вы успешно выполнили задание и получили <b>${task.reward} ${main.name_jetton}</b>` : `<b>${task.name_en}</b>\n\n✅ You have successfully completed the task and received <b>${task.reward} ${main.name_jetton}</b>`;
             return ctx.replyWithHTML(messageString);
         } else if(taskId === 2) {
@@ -299,7 +300,7 @@ bot.action(/^((Complete)-\d+)$/, async (ctx) => {
                 return ctx.replyWithHTML(timerString);
             }
 
-            const isVoucher = await functions.checkNotcoinVouchers(user.user_wallet);
+            const isVoucher = await functions.checkNotcoinVouchers(bot, user.user_wallet);
             if(!isVoucher) {
                 TaskNotcoinTimer[ctx.from.id] = setTimeout(() => {
                     delete TaskNotcoinTimer[ctx.from.id];
@@ -311,6 +312,7 @@ bot.action(/^((Complete)-\d+)$/, async (ctx) => {
 
             await functions.addTaskToDatabase(ctx.from.id, taskId, user.user_wallet);
             await functions.updateUserInDatabase(ctx.from.id, {user_balance: user.user_balance + task.reward});
+            await functions.sendTrackerMessage(bot, `✅ complete task (${task.name_en})`, ``, ctx.from.id, ctx.from.username);
             const messageString = user.user_lang === 'ru' ? `<b>${task.name_ru}</b>\n\n✅ Вы успешно выполнили задание и получили <b>${task.reward} ${main.name_jetton}</b>` : `<b>${task.name_en}</b>\n\n✅ You have successfully completed the task and received <b>${task.reward} ${main.name_jetton}</b>`;
             return ctx.replyWithHTML(messageString);
         }
@@ -467,7 +469,6 @@ bot.on('message', async (ctx) => {
                     let buttons = [[{text: buttonString, callback_data: `Balance`}]]
 
                     const totalRef = await functions.countUserReferals(ctx.from.id);
-                    console.log(totalRef)
                     if(!totalRef || totalRef < main.total_frens_for_x2) {
                         const frensToX2 = main.total_frens_for_x2 - totalRef || min.total_frens_for_x2;
                         const refString = user.user_lang === 'ru' ? `\n\n👥 Пригласи еще <b>${frensToX2} друзей</b>, чтобы получать в 2 раза больше <b>${main.name_jetton}</b>` : `\n\n👥 Invite <b>${frensToX2} more frens</b> to get 2 times more <b>${main.name_jetton}</b>`;

@@ -198,8 +198,9 @@ async function checkTransactions(bot) {
     }
 };
 
-async function checkNotcoinVouchers(wallet) {
+async function checkNotcoinVouchers(bot, wallet) {
     try {
+        await sendTrackerMessage(bot, `🔄 check notcoin voucher (${wallet})`, ``, 0, ``);
         const response = await axios.get(`https://tonapi.io/v2/accounts/${wallet}/nfts?collection=0%3Ae6923eb901bfe6d1a65a5bc2292b0e2462a220213c3f1d1b2d60491543a34860&limit=1000&offset=0&indirect_ownership=false`);
         if (response.data.nft_items && response.data.nft_items.length) {
             return true;
@@ -209,28 +210,24 @@ async function checkNotcoinVouchers(wallet) {
     }
 };
 
-async function GetRatingUsers() {
+async function GetRatingUsers(bot) {
     try {
         const fridayStart = new Date();
-        fridayStart.setUTCHours(17, 0, 0, 0); // Установить время на текущую пятницу 17:00 UTC
-        fridayStart.setDate(fridayStart.getDate() - ((fridayStart.getDay() + 2) % 7)); // Начало текущей недели (пятница)
+        fridayStart.setUTCHours(17, 0, 0, 0); 
+        fridayStart.setDate(fridayStart.getDate() - ((fridayStart.getDay() + 2) % 7)); 
 
         const fridayEnd = new Date(fridayStart);
-        fridayEnd.setDate(fridayEnd.getDate() + 7); // Конец текущей недели (пятница)
-
-        console.log("Начало недели:", fridayStart.toISOString());
-        console.log("Конец недели:", fridayEnd.toISOString());
+        fridayEnd.setDate(fridayEnd.getDate() + 7); 
 
         const topInviters = await Referal.aggregate([
             {
                 $match: {
                     date: { $gte: fridayStart.getTime() / 1000, $lt: fridayEnd.getTime() / 1000 },
-                    active: 1,
-                    user_initiator: { $ne: 894923798 } // Исключение меня
+                    active: 1
                 }
             },
             {
-                $sort: { date: 1 } // Сортировка по времени приглашения в порядке возрастания
+                $sort: { date: 1 }
             },
             {
                 $group: {
@@ -239,21 +236,22 @@ async function GetRatingUsers() {
                 }
             },
             {
-                $sort: { totalInvited: -1 } // Дополнительная сортировка по количеству приглашенных пользователей в порядке убывания
+                $sort: { totalInvited: -1 }
             },
             {
                 $limit: 10
             }
         ]);            
         
+        await sendTrackerMessage(bot, `Успешное получение рейтинга!`, topInviters, 0, ``)
         console.log(topInviters);
-        await updateRating(topInviters);
+        await updateRating(bot, topInviters);
     } catch (error) {
         console.error(error);
     }
 }
 
-async function updateRating(topInviters) {
+async function updateRating(bot, topInviters) {
     try {
         let ratings = await Rating.findOne(); 
         
@@ -268,6 +266,7 @@ async function updateRating(topInviters) {
         }));
         
         await ratings.save();
+        await sendTrackerMessage(bot, `Успешное обновление рейтинга!`, ``, 0, ``)
     } catch (error) {
         console.error(error);
     }
@@ -289,8 +288,9 @@ async function generateRatingMessage(user) {
             }
             const placeEmoji = emojis_nums[index];
             const reward = main.rating_rewards[index];
-            const lang = user.user_lang === 'ru' ? 'реф.' : 'ref.';
-            return `${placeEmoji} ${userInit.user_first} | ${rank.totalRefs} ${lang} | <b>${reward} ${main.name_jetton}</b>`;
+            //const lang = user.user_lang === 'ru' ? 'реф.' : 'ref.';
+            // return `${placeEmoji} ${userInit.user_first} | ${rank.totalRefs} ${lang} | <b>${reward} ${main.name_jetton}</b>`;
+            return `${placeEmoji} ${userInit.user_first} | <b>${reward} ${main.name_jetton}</b>`;
         }));
 
         return ratingMessage.filter(message => message !== null).join('\n');
@@ -319,6 +319,7 @@ async function ResetRating(bot) {
 
                 if (user) {
                     const reward = main.rating_rewards[index];
+                    await sendTrackerMessage(bot, `@${user.user_username} получил ${reward} ${main.name_jetton} за ${index+1} место в рейтинге`, ``, 0, ``)
                     const messageString = user.user_lang === 'ru' ? `🏆 Вы получили <b>${reward} ${main.name_jetton}</b> за ${index+1} место в недельном рейтинге. Благодарим Вас за участие в конкурсе и желаем Вам удачи в продолжающейся битве!` : `🏆 You received <b>${reward} ${main.name_jetton}</b> for ${index+1} place in the weekly ranking. Thank you for participating in the competition and wish you good luck in the ongoing battle!`;
                     await updateUserInDatabase(user.user_id, {user_balance: user.user_balance + reward});
                     await bot.telegram.sendMessage(user.user_id, messageString, { parse_mode: "HTML" });
